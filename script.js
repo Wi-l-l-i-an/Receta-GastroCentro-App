@@ -73,7 +73,8 @@ function loadTemplateDataUrl(src, cb, outputHeight = CONFIG.PH) {
     catch (e) { cb(null); }
   };
   img.onerror = function () { cb(null); };
-  img.src = src;
+  // Use embedded Base64 template if available, otherwise fall back to src
+  img.src = TEMPLATE_DATA || src;
 }
 
 function pctX(xPt) {
@@ -90,7 +91,7 @@ function createPreviewDom() {
 
   container.innerHTML = `
     <div class="rx-preview-page" id="previewFront">
-      <img class="rx-bg" src="./public/receta-bg.jpg" alt="Vista previa frente">
+      <img class="rx-bg" src="${TEMPLATE_DATA}" alt="Vista previa frente">
       <div class="cut-line"></div>
       <span class="ov-nombre" id="previewNombre"></span>
       <span class="ov-edad" id="previewEdad"></span>
@@ -99,7 +100,7 @@ function createPreviewDom() {
       <span class="ov-content" id="previewFrontContent"></span>
     </div>
     <div class="rx-preview-page" id="previewBack">
-      <img class="rx-bg" src="./public/receta-bg.jpg" alt="Vista previa reverso">
+      <img class="rx-bg" src="${TEMPLATE_DATA}" alt="Vista previa reverso">
       <div class="cut-line"></div>
       <span class="ov-label" id="previewBackLabel">Diagnósticos</span>
       <span class="ov-content" id="previewBackContent"></span>
