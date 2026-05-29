@@ -1,0 +1,257 @@
+/* ── Variables ───────────────────────────────────────────────────────────── */
+:root {
+  --blue:    #1f4e8c;
+  --blue-lt: #3a6fb5;
+  --bg:      #dce6f2;
+  --card:    #ffffff;
+  --border:  #c8d6e8;
+  --text:    #1a1a2e;
+  --gray:    #4a5568;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: 'DM Sans', Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* ── Layout ──────────────────────────────────────────────────────────────── */
+.app {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 1.25rem 1.25rem;
+}
+
+.app-title {
+  text-align: center;
+  margin-bottom: 1.25rem;
+}
+
+.app-title h1 {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--blue);
+}
+
+.app-title p {
+  margin: 0.3rem 0 0;
+  color: var(--gray);
+  font-size: 0.9rem;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 310px 1fr;
+  gap: 1.25rem;
+  align-items: start;
+}
+
+/* ── Form card ───────────────────────────────────────────────────────────── */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 1.2rem;
+  box-shadow: 0 6px 24px rgba(31,78,140,.08);
+  position: sticky;
+  top: 1rem;
+}
+
+.card h2 {
+  margin: 0 0 1rem;
+  font-size: 1rem;
+  color: var(--blue);
+  font-weight: 600;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 0.85rem;
+}
+
+.field label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--gray);
+  margin-bottom: 0.3rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.field input,
+.field textarea {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.6rem 0.75rem;
+  font-size: 0.92rem;
+  color: var(--text);
+  background: #f7fafd;
+  transition: border-color .2s, box-shadow .2s;
+  outline: none;
+  resize: vertical;
+  font-family: inherit;
+}
+
+.field input:focus,
+.field textarea:focus {
+  border-color: var(--blue-lt);
+  box-shadow: 0 0 0 3px rgba(31,78,140,.1);
+  background: white;
+}
+
+.field textarea { min-height: 80px; }
+
+.btn-primary {
+  width: 100%;
+  padding: 0.8rem;
+  background: var(--blue);
+  color: white;
+  font-size: 0.95rem;
+  font-family: inherit;
+  font-weight: 600;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background .2s, transform .15s, box-shadow .2s;
+  margin-top: 0.4rem;
+}
+
+.btn-primary:hover {
+  background: var(--blue-lt);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(31,78,140,.22);
+}
+
+/* ── Preview panel ───────────────────────────────────────────────────────── */
+.preview-panel {
+  min-width: 0;
+}
+
+.preview-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.tab-btn {
+  padding: 0.4rem 1rem;
+  border: 1px solid var(--border);
+  background: white;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-family: inherit;
+  cursor: pointer;
+  color: var(--gray);
+  font-weight: 500;
+  transition: all .15s;
+}
+
+.tab-btn.active {
+  background: var(--blue);
+  color: white;
+  border-color: var(--blue);
+}
+
+/* ── Recipe preview page (image + overlays) ──────────────────────────────── */
+.rx-preview-page {
+  position: relative;
+  width: 100%;
+  max-width: 500px;
+  margin: 0 auto 1.5rem;
+  box-shadow: 0 4px 20px rgba(0,0,0,.16);
+  border-radius: 3px;
+  overflow: hidden;
+  /* aspect ratio 612:792 (portrait letter) */
+  aspect-ratio: 612 / 792;
+}
+
+.rx-bg {
+  width: 100%;
+  height: 50%;
+  object-fit: cover;
+  object-position: top;
+  display: block;
+}
+
+/* All overlays use % positioning relative to the .rx-preview-page container */
+.ov-nombre,
+.ov-edad,
+.ov-fecha,
+.ov-label,
+.ov-content {
+  position: absolute;
+  font-family: Arial, Helvetica, sans-serif;
+  color: #1a1a2e;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Positioning is now set dynamically from CONFIG.coords in script.js
+   Conversión: left% = x_pt / 612 * 100; top% = (792 - y_pt_from_bottom) / 792 * 100
+   Los estilos inline en JavaScript sobrescriben estos valores base.
+   Portrait: 612pt ancho × 792pt alto (carta vertical)
+   Frente (Rx): superior | Reverso (Diagnósticos): inferior
+*/
+.ov-nombre, .ov-edad, .ov-fecha {
+  font-size: clamp(8px,1.15vw,13px);
+}
+
+.ov-label {
+  font-size: clamp(9px,1.2vw,14px);
+  font-weight: bold;
+  color: #1f4e8c;
+}
+
+.ov-content {
+  font-size: clamp(7px,0.95vw,11px);
+  line-height: 1.55;
+  max-height: 42%;
+  overflow: hidden;
+}
+
+/* Cut line divider */
+.cut-line {
+  position: absolute;
+  top: 50%;
+  left: 5%;
+  right: 5%;
+  height: 1px;
+  border-top: 2px dashed #c8d6e8;
+  pointer-events: none;
+}
+
+.cut-line::after {
+  content: '✂ Cortar aquí ✂';
+  position: absolute;
+  left: 50%;
+  top: -8px;
+  transform: translateX(-50%);
+  font-size: 10px;
+  color: #bbb;
+  white-space: nowrap;
+}
+
+/* ── PDF iframe view ─────────────────────────────────────────────────────── */
+#pdfFrame {
+  width: 100%;
+  height: 75vh;
+  border: none;
+  border-radius: 10px;
+  box-shadow: 0 4px 20px rgba(0,0,0,.12);
+  background: white;
+  display: none;
+}
+
+#pdfFrame.visible { display: block; }
+
+/* ── Responsive ──────────────────────────────────────────────────────────── */
+@media (max-width: 860px) {
+  .layout { grid-template-columns: 1fr; }
+  .card { position: static; }
+}
