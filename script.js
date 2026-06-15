@@ -22,20 +22,21 @@ const CONFIG = {
     valueY_fromBottom: 665,
 
     // Posición del título de contenido (Rx en frente, Diagnósticos en reverso)
-    rxLabelX: 200,
-    rxLabelY_fromBottom: 635,
+    rxLabelX: 80,
+    rxLabelY_fromBottom: 700,
 
     // Área de texto para la página frontal (Rx)
     contentX_front: 220,
-    contentW_front: 400,
+    contentW_front: 380,
 
     // Área de texto para la página reverso (Diagnósticos)
-    contentX_back: 200,
-    contentW_back: 505,
+    contentX_back: 80,
+    contentW_back: 400,
 
     // Altura de inicio del bloque de texto Rx / Diagnósticos,
     // también se mide desde abajo.
-    textY_fromBottom: 620,
+    textY_front_fromBottom: 620,
+    textY_back_fromBottom: 680,
 
     // Línea de firma en el frente, medida desde abajo.
     firmaY_fromBottom: 90,
@@ -52,6 +53,26 @@ function formatDate(val) {
   const d = new Date(val);
   if (isNaN(d)) return val;
   return d.toLocaleDateString();
+}
+
+function escapeHtml(text) {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+// Convierte el texto del diagnóstico en una lista de viñetas (una viñeta por línea)
+function diagToListHtml(diag) {
+  const lines = diag
+    .split('\n')
+    .map(l => l.trim())
+    .filter(l => l.length > 0);
+
+  if (lines.length === 0) return '';
+
+  const items = lines.map(l => `<li>${escapeHtml(l)}</li>`).join('');
+  return `<ul class="ov-list">${items}</ul>`;
 }
 
 function loadTemplateDataUrl(src, cb, outputHeight = CONFIG.PH) {
@@ -100,10 +121,9 @@ function createPreviewDom() {
       <span class="ov-content" id="previewFrontContent"></span>
     </div>
     <div class="rx-preview-page" id="previewBack">
-      <img class="rx-bg" src="${TEMPLATE_DATA}" alt="Vista previa reverso">
       <div class="cut-line"></div>
       <span class="ov-label" id="previewBackLabel">Diagnósticos</span>
-      <span class="ov-content" id="previewBackContent"></span>
+      <div class="ov-content" id="previewBackContent"></div>
     </div>
   `;
 }
@@ -132,7 +152,7 @@ function updatePreview() {
   previewEdad.textContent   = edad;
   previewFecha.textContent  = fecha;
   previewFrontContent.textContent = rx;
-  previewBackContent.textContent  = diag;
+  previewBackContent.innerHTML  = diagToListHtml(diag);
   previewFrontLabel.textContent   = '';
   previewBackLabel.textContent    = 'Diagnósticos';
 
@@ -144,8 +164,15 @@ function updatePreview() {
   previewFrontLabel.style.cssText = `left: ${pctX(c.rxLabelX)}% !important; top: ${pctY(c.rxLabelY_fromBottom)}% !important;`;
   previewBackLabel.style.cssText = `left: ${pctX(c.rxLabelX)}% !important; top: ${pctY(c.rxLabelY_fromBottom)}% !important;`;
 
-  previewFrontContent.style.cssText = `left: ${pctX(c.contentX_front)}% !important; top: ${pctY(c.textY_fromBottom)}% !important; width: ${(c.contentW_front / CONFIG.PW) * 100}% !important;`;
-  previewBackContent.style.cssText = `left: ${pctX(c.contentX_back)}% !important; top: ${pctY(c.textY_fromBottom)}% !important; width: ${(c.contentW_back / CONFIG.PW) * 100}% !important;`;
+  previewFrontContent.style.cssText = `
+  left: ${pctX(c.contentX_front)}% !important;
+  top: ${pctY(c.textY_front_fromBottom)}% !important;
+  width: ${(c.contentW_front / CONFIG.PW) * 100}% !important;`;
+
+  previewBackContent.style.cssText = `
+  left: ${pctX(c.contentX_back)}% !important;
+  top: ${pctY(c.textY_back_fromBottom)}% !important;
+  width: ${(c.contentW_back / CONFIG.PW) * 100}% !important;`;
 }
 
 function bindPreviewInputs() {
@@ -193,7 +220,8 @@ function buildPdf() {
 
     const y_val_front = PH - c.valueY_fromBottom;
     const labelY_front = PH - c.rxLabelY_fromBottom;
-    const textY_front = PH - c.textY_fromBottom;
+    const textY_front = PH - c.textY_front_fromBottom;
+    const textY_back  = PH - c.textY_back_fromBottom;
 
     // Página 1: frente (Rx)
     drawBackground();
@@ -220,13 +248,8 @@ function buildPdf() {
 
     drawCutLine();
 
-    // Página 2: reverso (Diagnósticos)
+    // Página 2: reverso (Diagnósticos) — se deja en blanco, sin imagen de fondo
     pdf.addPage();
-    drawBackground();
-
-    // Dibujar rectángulo blanco para tapar el "Rx" del template
-    pdf.setFillColor(255, 255, 255);
-    pdf.rect(c.rxLabelX - 10, labelY_front - 15, 50, 25, 'F');
 
     pdf.setFont('helvetica', 'bold');
     pdf.setFontSize(12);
@@ -238,10 +261,19 @@ function buildPdf() {
     pdf.setTextColor(20, 20, 50);
 
     if (diag) {
-      const lines_diag = pdf.splitTextToSize(diag, c.contentW_back);
-      lines_diag.forEach((line, i) => {
-        const y = textY_front + i * CONFIG.lineHeight;
-        if (y < cutY - 20) pdf.text(line, c.contentX_back, y);
+      const bulletIndent = 12; // sangría del texto respecto a la viñeta, en puntos
+      const diagLines = diag.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+      let y = textY_back;
+
+      diagLines.forEach(line => {
+        const wrapped = pdf.splitTextToSize(line, c.contentW_back - bulletIndent);
+        wrapped.forEach((wline, i) => {
+          if (y < cutY - 20) {
+            if (i === 0) pdf.text('•', c.contentX_back, y);
+            pdf.text(wline, c.contentX_back + bulletIndent, y);
+            y += CONFIG.lineHeight;
+          }
+        });
       });
     }
 
@@ -277,4 +309,3 @@ function formatDate(val) {
   const [y, m, d] = val.split('-');
   return `${d}/${m}/${y}`;
 }
-

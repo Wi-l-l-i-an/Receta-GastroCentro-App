@@ -1,3 +1,4 @@
+
 /* ── Variables ───────────────────────────────────────────────────────────── */
 :root {
   --blue:    #1f4e8c;
@@ -167,6 +168,7 @@ body {
   box-shadow: 0 4px 20px rgba(0,0,0,.16);
   border-radius: 3px;
   overflow: hidden;
+  background: #ffffff;
   /* aspect ratio 612:792 (portrait letter) */
   aspect-ratio: 612 / 792;
 }
@@ -213,6 +215,17 @@ body {
   line-height: 1.55;
   max-height: 42%;
   overflow: hidden;
+}
+
+/* Lista de viñetas para el diagnóstico (reverso) */
+.ov-content .ov-list {
+  margin: 0;
+  padding-left: 1.2em;
+  list-style: disc;
+}
+
+.ov-content .ov-list li {
+  margin-bottom: 0.25em;
 }
 
 /* Cut line divider */
