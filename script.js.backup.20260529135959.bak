@@ -27,15 +27,15 @@ const CONFIG = {
 
     // Área de texto para la página frontal (Rx)
     contentX_front: 220,
-    contentW_front: 505,
+    contentW_front: 400,
 
     // Área de texto para la página reverso (Diagnósticos)
-    contentX_back: 220,
+    contentX_back: 200,
     contentW_back: 505,
 
     // Altura de inicio del bloque de texto Rx / Diagnósticos,
     // también se mide desde abajo.
-    textY_fromBottom: 420,
+    textY_fromBottom: 620,
 
     // Línea de firma en el frente, medida desde abajo.
     firmaY_fromBottom: 90,
@@ -73,7 +73,8 @@ function loadTemplateDataUrl(src, cb, outputHeight = CONFIG.PH) {
     catch (e) { cb(null); }
   };
   img.onerror = function () { cb(null); };
-  img.src = src;
+  // Use embedded Base64 template if available, otherwise fall back to src
+  img.src = TEMPLATE_DATA || src;
 }
 
 function pctX(xPt) {
@@ -90,7 +91,7 @@ function createPreviewDom() {
 
   container.innerHTML = `
     <div class="rx-preview-page" id="previewFront">
-      <img class="rx-bg" src="./public/receta-bg.jpg" alt="Vista previa frente">
+      <img class="rx-bg" src="${TEMPLATE_DATA}" alt="Vista previa frente">
       <div class="cut-line"></div>
       <span class="ov-nombre" id="previewNombre"></span>
       <span class="ov-edad" id="previewEdad"></span>
@@ -99,7 +100,7 @@ function createPreviewDom() {
       <span class="ov-content" id="previewFrontContent"></span>
     </div>
     <div class="rx-preview-page" id="previewBack">
-      <img class="rx-bg" src="./public/receta-bg.jpg" alt="Vista previa reverso">
+      <img class="rx-bg" src="${TEMPLATE_DATA}" alt="Vista previa reverso">
       <div class="cut-line"></div>
       <span class="ov-label" id="previewBackLabel">Diagnósticos</span>
       <span class="ov-content" id="previewBackContent"></span>
@@ -197,14 +198,14 @@ function buildPdf() {
     // Página 1: frente (Rx)
     drawBackground();
     pdf.setFont('helvetica', 'normal');
-    pdf.setFontSize(14);
+    pdf.setFontSize(12);
     pdf.setTextColor(30, 30, 60);
 
     if (nombre) pdf.text(nombre, c.nombreX, y_val_front);
     if (edad)   pdf.text(edad,   c.edadX,  y_val_front);
     if (fecha)  pdf.text(fecha,  c.fechaX, y_val_front);
 
-    pdf.setFontSize(11);
+    pdf.setFontSize(10);
     pdf.setFont('helvetica', 'normal');
     pdf.setFontSize(10);
     pdf.setTextColor(20, 20, 50);
@@ -222,6 +223,10 @@ function buildPdf() {
     // Página 2: reverso (Diagnósticos)
     pdf.addPage();
     drawBackground();
+
+    // Dibujar rectángulo blanco para tapar el "Rx" del template
+    pdf.setFillColor(255, 255, 255);
+    pdf.rect(c.rxLabelX - 10, labelY_front - 15, 50, 25, 'F');
 
     pdf.setFont('helvetica', 'bold');
     pdf.setFontSize(12);
