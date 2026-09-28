@@ -48,13 +48,6 @@ const CONFIG = {
   lineHeight: 13
 };
 
-function formatDate(val) {
-  if (!val) return '';
-  const d = new Date(val);
-  if (isNaN(d)) return val;
-  return d.toLocaleDateString();
-}
-
 function escapeHtml(text) {
   return text
     .replace(/&/g, '&amp;')
@@ -75,29 +68,6 @@ function diagToListHtml(diag) {
   return `<ul class="ov-list">${items}</ul>`;
 }
 
-function loadTemplateDataUrl(src, cb, outputHeight = CONFIG.PH) {
-  const img = new Image();
-  img.crossOrigin = 'anonymous';
-  img.onload = function () {
-    const canvas = document.createElement('canvas');
-    canvas.width = CONFIG.PW;
-    canvas.height = outputHeight;
-    const ctx = canvas.getContext('2d');
-
-    const sourceWidth = img.naturalWidth || CONFIG.PW;
-    const sourceHeight = img.naturalHeight || CONFIG.PH;
-    const sourceCropHeight = Math.min(sourceHeight, Math.round(sourceHeight * (outputHeight / CONFIG.PH)));
-
-    // draw the top portion of the template to match half-page layout when outputHeight is cutY
-    ctx.drawImage(img, 0, 0, sourceWidth, sourceCropHeight, 0, 0, CONFIG.PW, outputHeight);
-    try { cb(canvas.toDataURL('image/jpeg')); }
-    catch (e) { cb(null); }
-  };
-  img.onerror = function () { cb(null); };
-  // Use embedded Base64 template if available, otherwise fall back to src
-  img.src = TEMPLATE_DATA || src;
-}
-
 function pctX(xPt) {
   return (xPt / CONFIG.PW) * 100;
 }
@@ -112,188 +82,279 @@ function createPreviewDom() {
 
   container.innerHTML = `
     <div class="rx-preview-page" id="previewFront">
-      <img class="rx-bg" src="${TEMPLATE_DATA}" alt="Vista previa frente">
+      <img class="rx-bg" id="previewTemplate" alt="Plantilla de receta">
       <div class="cut-line"></div>
       <span class="ov-nombre" id="previewNombre"></span>
+      <span class="ov-nombre" id="previewNombre2"></span>
       <span class="ov-edad" id="previewEdad"></span>
+      <span class="ov-edad" id="previewEdad2"></span>
       <span class="ov-fecha" id="previewFecha"></span>
-      <span class="ov-label" id="previewFrontLabel">Rx</span>
+      <span class="ov-fecha" id="previewFecha2"></span>
       <span class="ov-content" id="previewFrontContent"></span>
+      <span class="ov-content" id="previewFrontContent2"></span>
     </div>
     <div class="rx-preview-page" id="previewBack">
       <div class="cut-line"></div>
       <span class="ov-label" id="previewBackLabel">Diagnósticos</span>
+      <span class="ov-label" id="previewBackLabel2">Diagnósticos</span>
       <div class="ov-content" id="previewBackContent"></div>
+      <div class="ov-content" id="previewBackContent2"></div>
     </div>
   `;
 }
 
+async function renderTemplatePreview() {
+  if (!window.pdfjsLib) return;
+  try {
+    const response = await fetch('./public/dr. wilian lemuz gastroenterologia.pdf');
+    if (!response.ok) throw new Error('No se encontró el PDF de la receta.');
+    const data = new Uint8Array(await response.arrayBuffer());
+    const pdf = await window.pdfjsLib.getDocument({ data, disableWorker: true }).promise;
+    const page = await pdf.getPage(1);
+    const viewport = page.getViewport({ scale: 2 });
+    const canvas = document.createElement('canvas');
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+    const image = document.getElementById('previewTemplate');
+    if (image) image.src = canvas.toDataURL('image/png');
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+const RECIPE_FIELDS = ['nombre', 'edad', 'fecha', 'medicamentos', 'diagnostico'];
+const recipeData = [createEmptyRecipe(), createEmptyRecipe()];
+let activeRecipeIndex = 0;
+let secondRecipeEnabled = false;
+
+function createEmptyRecipe() {
+  return { nombre: '', edad: '', fecha: '', medicamentos: '', diagnostico: '' };
+}
+
+function saveActiveRecipe() {
+  RECIPE_FIELDS.forEach((field) => {
+    const input = document.getElementById(field);
+    if (input) recipeData[activeRecipeIndex][field] = input.value;
+  });
+}
+
+function selectRecipe(index) {
+  saveActiveRecipe();
+  activeRecipeIndex = index;
+  RECIPE_FIELDS.forEach((field) => {
+    const input = document.getElementById(field);
+    if (input) input.value = recipeData[index][field];
+  });
+
+  document.getElementById('recipeTab1').classList.toggle('active', index === 0);
+  document.getElementById('recipeTab1').setAttribute('aria-selected', index === 0);
+  document.getElementById('recipeTab2').classList.toggle('active', index === 1);
+  document.getElementById('recipeTab2').setAttribute('aria-selected', index === 1);
+  updatePreview();
+}
+
 function updatePreview() {
-  const nombre = document.getElementById('nombre')?.value.trim() || '';
-  const edad   = document.getElementById('edad')?.value.trim() || '';
-  const fecha  = formatDate(document.getElementById('fecha')?.value);
-  const rx     = document.getElementById('medicamentos')?.value.trim() || '';
-  const diag   = document.getElementById('diagnostico')?.value.trim() || '';
+  saveActiveRecipe();
+  const firstRecipe = recipeData[0];
+  const secondRecipe = secondRecipeEnabled ? recipeData[1] : firstRecipe;
   const c      = CONFIG.coords;
 
   const previewNombre = document.getElementById('previewNombre');
+  const previewNombre2 = document.getElementById('previewNombre2');
   const previewEdad   = document.getElementById('previewEdad');
+  const previewEdad2  = document.getElementById('previewEdad2');
   const previewFecha  = document.getElementById('previewFecha');
+  const previewFecha2 = document.getElementById('previewFecha2');
   const previewFrontContent = document.getElementById('previewFrontContent');
+  const previewFrontContent2 = document.getElementById('previewFrontContent2');
   const previewBackContent  = document.getElementById('previewBackContent');
-  const previewFrontLabel   = document.getElementById('previewFrontLabel');
+  const previewBackContent2 = document.getElementById('previewBackContent2');
   const previewBackLabel    = document.getElementById('previewBackLabel');
+  const previewBackLabel2   = document.getElementById('previewBackLabel2');
 
-  if (!previewNombre || !previewEdad || !previewFecha || !previewFrontContent || !previewBackContent) {
+  if (!previewNombre || !previewNombre2 || !previewEdad || !previewEdad2 || !previewFecha || !previewFecha2 || !previewFrontContent || !previewFrontContent2 || !previewBackContent || !previewBackContent2) {
     return;
   }
 
-  previewNombre.textContent = nombre;
-  previewEdad.textContent   = edad;
-  previewFecha.textContent  = fecha;
-  previewFrontContent.textContent = rx;
-  previewBackContent.innerHTML  = diagToListHtml(diag);
-  previewFrontLabel.textContent   = '';
-  previewBackLabel.textContent    = 'Diagnósticos';
+  previewNombre.textContent = firstRecipe.nombre.trim();
+  previewNombre2.textContent = secondRecipe.nombre.trim();
+  previewEdad.textContent = firstRecipe.edad.trim();
+  previewEdad2.textContent = secondRecipe.edad.trim();
+  previewFecha.textContent = formatDate(firstRecipe.fecha);
+  previewFecha2.textContent = formatDate(secondRecipe.fecha);
+  previewFrontContent.textContent = firstRecipe.medicamentos.trim();
+  previewFrontContent2.textContent = secondRecipe.medicamentos.trim();
+  previewBackContent.innerHTML = diagToListHtml(firstRecipe.diagnostico.trim());
+  previewBackContent2.innerHTML = diagToListHtml(secondRecipe.diagnostico.trim());
 
-  // Aplicar estilos dinámicos desde CONFIG.coords (con !important para garantizar que prevalezcan)
-  previewNombre.style.cssText = `left: ${pctX(c.nombreX)}% !important; top: ${pctY(c.valueY_fromBottom)}% !important;`;
-  previewEdad.style.cssText = `left: ${pctX(c.edadX)}% !important; top: ${pctY(c.valueY_fromBottom)}% !important;`;
-  previewFecha.style.cssText = `left: ${pctX(c.fechaX)}% !important; top: ${pctY(c.valueY_fromBottom)}% !important;`;
-
-  previewFrontLabel.style.cssText = `left: ${pctX(c.rxLabelX)}% !important; top: ${pctY(c.rxLabelY_fromBottom)}% !important;`;
-  previewBackLabel.style.cssText = `left: ${pctX(c.rxLabelX)}% !important; top: ${pctY(c.rxLabelY_fromBottom)}% !important;`;
-
-  previewFrontContent.style.cssText = `
-  left: ${pctX(c.contentX_front)}% !important;
-  top: ${pctY(c.textY_front_fromBottom)}% !important;
-  width: ${(c.contentW_front / CONFIG.PW) * 100}% !important;`;
-
-  previewBackContent.style.cssText = `
-  left: ${pctX(c.contentX_back)}% !important;
-  top: ${pctY(c.textY_back_fromBottom)}% !important;
-  width: ${(c.contentW_back / CONFIG.PW) * 100}% !important;`;
+  const positionField = (element, x, y, width) => {
+    element.style.cssText = `left:${pctX(x)}%;top:${pctY(y)}%;${width ? `width:${(width / CONFIG.PW) * 100}%;` : ''}`;
+  };
+  positionField(previewNombre, c.nombreX, c.valueY_fromBottom);
+  positionField(previewNombre2, c.nombreX, c.valueY_fromBottom - c.cutLineY);
+  positionField(previewEdad, c.edadX, c.valueY_fromBottom);
+  positionField(previewEdad2, c.edadX, c.valueY_fromBottom - c.cutLineY);
+  positionField(previewFecha, c.fechaX, c.valueY_fromBottom);
+  positionField(previewFecha2, c.fechaX, c.valueY_fromBottom - c.cutLineY);
+  positionField(previewFrontContent, c.contentX_front, c.textY_front_fromBottom, c.contentW_front);
+  positionField(previewFrontContent2, c.contentX_front, c.textY_front_fromBottom - c.cutLineY, c.contentW_front);
+  positionField(previewBackLabel, c.rxLabelX, c.rxLabelY_fromBottom);
+  positionField(previewBackLabel2, c.rxLabelX, c.rxLabelY_fromBottom - c.cutLineY);
+  positionField(previewBackContent, c.contentX_back, c.textY_back_fromBottom, c.contentW_back);
+  positionField(previewBackContent2, c.contentX_back, c.textY_back_fromBottom - c.cutLineY, c.contentW_back);
 }
 
 function bindPreviewInputs() {
-  const fields = ['nombre', 'edad', 'fecha', 'medicamentos', 'diagnostico'];
-  fields.forEach(id => {
+  RECIPE_FIELDS.forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
     el.addEventListener('input', updatePreview);
   });
+
+  document.getElementById('recipeTab1').addEventListener('click', () => selectRecipe(0));
+  document.getElementById('recipeTab2').addEventListener('click', () => selectRecipe(1));
+  document.getElementById('enableSecondRecipe').addEventListener('change', (event) => {
+    secondRecipeEnabled = event.target.checked;
+    document.getElementById('recipeTab2').hidden = !secondRecipeEnabled;
+    selectRecipe(secondRecipeEnabled ? 1 : 0);
+  });
 }
 
-function buildPdf() {
-  const jsPDFClass = window.jspdf?.jsPDF || window.jsPDF;
-  if (!jsPDFClass) { alert('No se pudo cargar jsPDF. Verifica tu conexión.'); return; }
+async function buildPdf() {
+  if (!window.PDFLib) { alert('No se pudo cargar pdf-lib. Verifica tu conexión.'); return; }
 
-  const nombre = document.getElementById('nombre')?.value.trim() || '';
-  const edad   = document.getElementById('edad')?.value.trim() || '';
-  const fecha  = formatDate(document.getElementById('fecha')?.value);
-  const rx     = document.getElementById('medicamentos')?.value.trim() || '';
-  const diag   = document.getElementById('diagnostico')?.value.trim() || '';
-
-  const pdf = new jsPDFClass({ unit: 'pt', format: 'letter', orientation: 'portrait' });
-  const PW = CONFIG.PW, PH = CONFIG.PH;
+  saveActiveRecipe();
+  const recipes = [recipeData[0], secondRecipeEnabled ? recipeData[1] : recipeData[0]];
   const c = CONFIG.coords;
   const cutY = c.cutLineY;
+  const { PDFDocument, StandardFonts, rgb } = window.PDFLib;
 
-  // Load template image then draw each side on its own letter portrait page.
-  loadTemplateDataUrl('./public/receta-bg.jpg', function(imgDataUrl) {
-    const drawBackground = () => {
-      if (!imgDataUrl) return;
-      try { pdf.addImage(imgDataUrl, 'JPEG', 0, 0, PW, cutY); }
-      catch (e) { /* ignore */ }
-    };
+  try {
+    const templateResponse = await fetch('./public/dr. wilian lemuz gastroenterologia.pdf');
+    if (!templateResponse.ok) throw new Error('No se encontró el PDF de la receta.');
+    const pdf = await PDFDocument.load(await templateResponse.arrayBuffer());
+    const frontPage = pdf.getPages()[0];
+    const regularFont = await pdf.embedFont(StandardFonts.Helvetica);
+    const boldFont = await pdf.embedFont(StandardFonts.HelveticaBold);
+    const copyOffsets = [0, cutY];
+    const ink = rgb(0.16, 0.12, 0.11);
 
-    const drawCutLine = () => {
-      pdf.setDrawColor(180, 180, 180);
-      pdf.setLineDash([5, 5]);
-      pdf.line(20, cutY, PW - 20, cutY);
-      pdf.setLineDash([]);
-      pdf.setDrawColor(0);
-      pdf.setFontSize(8);
-      pdf.setTextColor(150, 150, 150);
-      pdf.text('✂ Cortar aquí ✂', PW / 2 - 30, cutY + 10);
-    };
-
-    const y_val_front = PH - c.valueY_fromBottom;
-    const labelY_front = PH - c.rxLabelY_fromBottom;
-    const textY_front = PH - c.textY_front_fromBottom;
-    const textY_back  = PH - c.textY_back_fromBottom;
-
-    // Página 1: frente (Rx)
-    drawBackground();
-    pdf.setFont('helvetica', 'normal');
-    pdf.setFontSize(12);
-    pdf.setTextColor(30, 30, 60);
-
-    if (nombre) pdf.text(nombre, c.nombreX, y_val_front);
-    if (edad)   pdf.text(edad,   c.edadX,  y_val_front);
-    if (fecha)  pdf.text(fecha,  c.fechaX, y_val_front);
-
-    pdf.setFontSize(10);
-    pdf.setFont('helvetica', 'normal');
-    pdf.setFontSize(10);
-    pdf.setTextColor(20, 20, 50);
-
-    if (rx) {
-      const lines_rx = pdf.splitTextToSize(rx, c.contentW_front);
-      lines_rx.forEach((line, i) => {
-        const y = textY_front + i * CONFIG.lineHeight;
-        if (y < cutY - 20) pdf.text(line, c.contentX_front, y);
-      });
-    }
-
-    drawCutLine();
-
-    // Página 2: reverso (Diagnósticos) — se deja en blanco, sin imagen de fondo
-    pdf.addPage();
-
-    pdf.setFont('helvetica', 'bold');
-    pdf.setFontSize(12);
-    pdf.setTextColor(31, 78, 140);
-    pdf.text('Diagnósticos', c.contentX_back, labelY_front);
-
-    pdf.setFont('helvetica', 'normal');
-    pdf.setFontSize(10);
-    pdf.setTextColor(20, 20, 50);
-
-    if (diag) {
-      const bulletIndent = 12; // sangría del texto respecto a la viñeta, en puntos
-      const diagLines = diag.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-      let y = textY_back;
-
-      diagLines.forEach(line => {
-        const wrapped = pdf.splitTextToSize(line, c.contentW_back - bulletIndent);
-        wrapped.forEach((wline, i) => {
-          if (y < cutY - 20) {
-            if (i === 0) pdf.text('•', c.contentX_back, y);
-            pdf.text(wline, c.contentX_back + bulletIndent, y);
-            y += CONFIG.lineHeight;
+    const wrapText = (text, font, fontSize, maxWidth) => {
+      const lines = [];
+      text.split(/\r?\n/).forEach((paragraph) => {
+        let line = '';
+        paragraph.trim().split(/\s+/).forEach((word) => {
+          if (!word) return;
+          const candidate = line ? `${line} ${word}` : word;
+          if (line && font.widthOfTextAtSize(candidate, fontSize) > maxWidth) {
+            lines.push(line);
+            line = word;
+          } else {
+            line = candidate;
           }
         });
+        if (line) lines.push(line);
       });
-    }
+      return lines;
+    };
 
-    drawCutLine();
+    const drawFitText = (page, text, x, y, maxWidth) => {
+      if (!text) return;
+      const baseSize = 12;
+      const textWidth = regularFont.widthOfTextAtSize(text, baseSize);
+      const fontSize = textWidth > maxWidth ? Math.max(8, baseSize * maxWidth / textWidth) : baseSize;
+      page.drawText(text, { x, y, size: fontSize, font: regularFont, color: ink });
+    };
 
-    const pdfUrl = pdf.output('bloburl');
+    const drawCutLine = (page) => {
+      page.drawLine({
+        start: { x: 20, y: cutY },
+        end: { x: CONFIG.PW - 20, y: cutY },
+        thickness: 0.6,
+        color: rgb(0.7, 0.7, 0.7),
+        dashArray: [5, 5]
+      });
+      page.drawText('Cortar aquí', {
+        x: CONFIG.PW / 2 - 20,
+        y: cutY - 12,
+        size: 8,
+        font: regularFont,
+        color: rgb(0.58, 0.58, 0.58)
+      });
+    };
+
+    copyOffsets.forEach((offsetY, index) => {
+      const recipe = recipes[index];
+      const yValue = c.valueY_fromBottom - offsetY;
+      drawFitText(frontPage, recipe.nombre.trim(), c.nombreX, yValue, c.edadX - c.nombreX - 10);
+      drawFitText(frontPage, recipe.edad.trim(), c.edadX, yValue, c.fechaX - c.edadX - 10);
+      drawFitText(frontPage, formatDate(recipe.fecha), c.fechaX, yValue, CONFIG.PW - c.fechaX - 24);
+
+      const lines = wrapText(recipe.medicamentos.trim(), regularFont, 10, c.contentW_front);
+      const lowerLimit = offsetY === 0 ? cutY + 20 : 20;
+      const maxLines = Math.max(0, Math.floor((c.textY_front_fromBottom - offsetY - lowerLimit) / CONFIG.lineHeight) + 1);
+      lines.slice(0, maxLines).forEach((line, index) => {
+        frontPage.drawText(line, {
+          x: c.contentX_front,
+          y: c.textY_front_fromBottom - offsetY - index * CONFIG.lineHeight,
+          size: 10,
+          font: regularFont,
+          color: ink
+        });
+      });
+    });
+    drawCutLine(frontPage);
+
+    const backPage = pdf.addPage([CONFIG.PW, CONFIG.PH]);
+    copyOffsets.forEach((offsetY, index) => {
+      const recipe = recipes[index];
+      const labelY = c.rxLabelY_fromBottom - offsetY;
+      backPage.drawText('Diagnósticos', {
+        x: c.contentX_back,
+        y: labelY,
+        size: 12,
+        font: boldFont,
+        color: rgb(0.12, 0.31, 0.55)
+      });
+
+      const lines = wrapText(recipe.diagnostico.trim(), regularFont, 10, c.contentW_back - 12);
+      const startY = c.textY_back_fromBottom - offsetY;
+      const lowerLimit = offsetY === 0 ? cutY + 20 : 20;
+      const maxLines = Math.max(0, Math.floor((startY - lowerLimit) / CONFIG.lineHeight) + 1);
+      lines.slice(0, maxLines).forEach((line, index) => {
+        const y = startY - index * CONFIG.lineHeight;
+        if (index === 0) backPage.drawText('-', { x: c.contentX_back, y, size: 10, font: regularFont, color: ink });
+        backPage.drawText(line, {
+          x: c.contentX_back + 12,
+          y,
+          size: 10,
+          font: regularFont,
+          color: ink
+        });
+      });
+    });
+    drawCutLine(backPage);
+
+    const pdfBytes = await pdf.save();
+    const pdfUrl = URL.createObjectURL(new Blob([pdfBytes], { type: 'application/pdf' }));
     const iframe = document.getElementById('pdfFrame');
     if (iframe) {
       iframe.src = pdfUrl;
       if (typeof showTab === 'function') showTab('pdf');
-    }
-    else {
+    } else {
       window.open(pdfUrl, '_blank');
     }
-  });
+  } catch (error) {
+    console.error(error);
+    alert('No se pudo generar el PDF. Verifica que la plantilla esté disponible.');
+  }
 }
 
 // Wire preview + button
 document.addEventListener('DOMContentLoaded', () => {
   createPreviewDom();
+  renderTemplatePreview();
   bindPreviewInputs();
   updatePreview();
 

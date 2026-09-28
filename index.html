@@ -3,7 +3,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Receta Médica – Gastrocentro de Occidente</title>
+  <title>Receta Médica Gastrocentro de Occidente</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -22,7 +22,19 @@
     <!-- ── Formulario ──────────────────────────────────────── -->
     <aside class="card">
       <h2>Datos del paciente</h2>
+
+      <div class="recipe-controls">
+        <label class="checkbox-option" for="enableSecondRecipe">
+          <input id="enableSecondRecipe" type="checkbox">
+          <span>Usar una segunda receta diferente</span>
+        </label>
+        <div class="recipe-tabs" role="tablist" aria-label="Recetas de la hoja">
+          <button class="recipe-tab active" id="recipeTab1" type="button" role="tab" aria-selected="true" aria-controls="patientFields">Receta 1</button>
+          <button class="recipe-tab" id="recipeTab2" type="button" role="tab" aria-selected="false" aria-controls="patientFields" hidden>Receta 2</button>
+        </div>
+      </div>
  
+      <div id="patientFields">
       <div class="field">
         <label for="nombre">Nombre del paciente</label>
         <input id="nombre" type="text" placeholder="Nombre completo" autocomplete="off">
@@ -47,8 +59,9 @@
         <label for="diagnostico">Diagnóstico — reverso</label>
         <textarea id="diagnostico" placeholder="Diagnóstico detallado…"></textarea>
       </div>
+      </div>
  
-      <button class="btn-primary" id="btnPDF">⬇ Generar PDF (frente / reverso)</button>
+      <button class="btn-primary" id="btnPDF">⬇ Generar PDF (2 recetas por hoja)</button>
     </aside>
  
     <!-- ── Vista previa ──────────────────────────────────── -->
@@ -65,7 +78,8 @@
   </div>
 </div>
  
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" integrity="sha384-/1qUCSGwTur9vjf/z9lmu/eCUYbpOTgSjmpbMQZ1/CtX2v/WcAIKqRv+U1DUCG6e" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js" integrity="sha384-weMABwrltA6jWR8DDe9Jp5blk+tZQh7ugpCsF3JwSA53WZM9/14PjS5LAJNHNjAI" crossorigin="anonymous"></script>
 <script src="script.js"></script>
 <script>
 function showTab(tab) {
