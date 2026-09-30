@@ -19,7 +19,9 @@ const CONFIG = {
     // Altura común para los valores Nombre / Edad / Fecha,
     // medida desde la parte inferior de la página.
     // En el PDF se convierte a Y real con PH - valueY_fromBottom.
-    valueY_fromBottom: 665,
+    valueY_fromBottom: 670,
+    // El PDF posiciona la línea base; el preview necesita compensar la caja CSS.
+    previewBaselineOffset: 10,
 
     // Posición del título de contenido (Rx en frente, Diagnósticos en reverso)
     rxLabelX: 80,
@@ -81,8 +83,9 @@ function createPreviewDom() {
   if (!container) return;
 
   container.innerHTML = `
-    <div class="rx-preview-page" id="previewFront">
+    <div class="rx-preview-page single-recipe" id="previewFront">
       <img class="rx-bg" id="previewTemplate" alt="Plantilla de receta">
+      <div class="single-recipe-mask"></div>
       <div class="cut-line"></div>
       <span class="ov-nombre" id="previewNombre"></span>
       <span class="ov-nombre" id="previewNombre2"></span>
@@ -93,7 +96,8 @@ function createPreviewDom() {
       <span class="ov-content" id="previewFrontContent"></span>
       <span class="ov-content" id="previewFrontContent2"></span>
     </div>
-    <div class="rx-preview-page" id="previewBack">
+    <div class="rx-preview-page single-recipe" id="previewBack">
+      <div class="single-recipe-mask"></div>
       <div class="cut-line"></div>
       <span class="ov-label" id="previewBackLabel">Diagnósticos</span>
       <span class="ov-label" id="previewBackLabel2">Diagnósticos</span>
@@ -157,7 +161,7 @@ function selectRecipe(index) {
 function updatePreview() {
   saveActiveRecipe();
   const firstRecipe = recipeData[0];
-  const secondRecipe = secondRecipeEnabled ? recipeData[1] : firstRecipe;
+  const secondRecipe = secondRecipeEnabled ? recipeData[1] : createEmptyRecipe();
   const c      = CONFIG.coords;
 
   const previewNombre = document.getElementById('previewNombre');
@@ -187,9 +191,13 @@ function updatePreview() {
   previewFrontContent2.textContent = secondRecipe.medicamentos.trim();
   previewBackContent.innerHTML = diagToListHtml(firstRecipe.diagnostico.trim());
   previewBackContent2.innerHTML = diagToListHtml(secondRecipe.diagnostico.trim());
+  document.getElementById('previewFront').classList.toggle('single-recipe', !secondRecipeEnabled);
+  document.getElementById('previewBack').classList.toggle('single-recipe', !secondRecipeEnabled);
+  previewBackLabel2.hidden = !secondRecipeEnabled;
+  previewBackContent2.hidden = !secondRecipeEnabled;
 
   const positionField = (element, x, y, width) => {
-    element.style.cssText = `left:${pctX(x)}%;top:${pctY(y)}%;${width ? `width:${(width / CONFIG.PW) * 100}%;` : ''}`;
+    element.style.cssText = `left:${pctX(x)}%;top:${pctY(y + c.previewBaselineOffset)}%;${width ? `width:${(width / CONFIG.PW) * 100}%;` : ''}`;
   };
   positionField(previewNombre, c.nombreX, c.valueY_fromBottom);
   positionField(previewNombre2, c.nombreX, c.valueY_fromBottom - c.cutLineY);
@@ -217,6 +225,9 @@ function bindPreviewInputs() {
   document.getElementById('enableSecondRecipe').addEventListener('change', (event) => {
     secondRecipeEnabled = event.target.checked;
     document.getElementById('recipeTab2').hidden = !secondRecipeEnabled;
+    document.getElementById('btnPDF').textContent = secondRecipeEnabled
+      ? '⬇ Generar PDF (2 recetas)'
+      : '⬇ Generar PDF (1 receta)';
     selectRecipe(secondRecipeEnabled ? 1 : 0);
   });
 }
@@ -225,7 +236,7 @@ async function buildPdf() {
   if (!window.PDFLib) { alert('No se pudo cargar pdf-lib. Verifica tu conexión.'); return; }
 
   saveActiveRecipe();
-  const recipes = [recipeData[0], secondRecipeEnabled ? recipeData[1] : recipeData[0]];
+  const recipes = secondRecipeEnabled ? [recipeData[0], recipeData[1]] : [recipeData[0]];
   const c = CONFIG.coords;
   const cutY = c.cutLineY;
   const { PDFDocument, StandardFonts, rgb } = window.PDFLib;
@@ -237,8 +248,18 @@ async function buildPdf() {
     const frontPage = pdf.getPages()[0];
     const regularFont = await pdf.embedFont(StandardFonts.Helvetica);
     const boldFont = await pdf.embedFont(StandardFonts.HelveticaBold);
-    const copyOffsets = [0, cutY];
+    const copyOffsets = secondRecipeEnabled ? [0, cutY] : [0];
     const ink = rgb(0.16, 0.12, 0.11);
+
+    if (!secondRecipeEnabled) {
+      frontPage.drawRectangle({
+        x: 0,
+        y: 0,
+        width: CONFIG.PW,
+        height: cutY,
+        color: rgb(1, 1, 1)
+      });
+    }
 
     const wrapText = (text, font, fontSize, maxWidth) => {
       const lines = [];

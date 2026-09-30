@@ -228,6 +228,22 @@ body {
   display: block;
 }
 
+.single-recipe-mask {
+  display: none;
+  position: absolute;
+  z-index: 1;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 50%;
+  background: #fff;
+  pointer-events: none;
+}
+
+.single-recipe .single-recipe-mask {
+  display: block;
+}
+
 /* All overlays use % positioning relative to the .rx-preview-page container */
 .ov-nombre,
 .ov-edad,
